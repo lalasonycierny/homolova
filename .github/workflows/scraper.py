@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Každých 10 s načíta zastávkovú tabuľu imhd.sk (Homolova, st=85), nájde
+Načíta zastávkovú tabuľu imhd.sk (Homolova, st=85), nájde
 PRVÝ riadok zhora, ktorý obsahuje slovo "Petržalka", a zapíše ho do index.html.
 Voliteľne zmeny pushne do git repozitára (PUBLISH_DIR).
 
 Použitie:
   pip install playwright && playwright install chromium
   python scraper.py                 # beží donekonečna
-  DURATION=280 python scraper.py    # beží 280 s (pre GitHub Actions)
+  RUNS=10 INTERVAL=30 python scraper.py   # 10 behov po 30 s (pre GitHub Actions)
   PUBLISH_DIR=./live python scraper.py   # + git commit/push po každom behu
 """
 import html
@@ -23,8 +23,8 @@ from playwright.sync_api import sync_playwright
 
 URL = "https://imhd.sk/ba/online-zastavkova-tabula?st=85"
 KEYWORD = "petrzalka"
-INTERVAL = 10
-DURATION = int(os.getenv("DURATION", "0"))  # 0 = nekonečne
+INTERVAL = int(os.getenv("INTERVAL", "30"))  # pauza medzi behmi v sekundách
+RUNS = int(os.getenv("RUNS", "0"))  # počet behov, 0 = nekonečne
 OUT_DIR = Path(os.getenv("PUBLISH_DIR", "."))
 
 
@@ -63,7 +63,7 @@ def write_html(row: str):
         f"""<!doctype html>
 <html lang="sk"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="10">
+<meta http-equiv="refresh" content="{INTERVAL}">
 <title>Homolova → Petržalka</title>
 <style>body{{font-family:system-ui,sans-serif;background:#111;color:#fff;
 display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0}}
@@ -88,7 +88,7 @@ def publish():
 
 
 def main():
-    start = time.time()
+    count = 0
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
@@ -101,7 +101,8 @@ def main():
                 print(datetime.now().isoformat(timespec="seconds"), row or "(nič)", flush=True)
             except Exception as e:
                 print("Chyba:", e, flush=True)
-            if DURATION and time.time() - start + INTERVAL > DURATION:
+            count += 1
+            if RUNS and count >= RUNS:
                 break
             time.sleep(max(0, INTERVAL - (time.time() - t0)))
         browser.close()
