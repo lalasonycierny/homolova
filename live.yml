@@ -34,8 +34,9 @@ jobs:
           pip install playwright
           playwright install --with-deps chromium
 
-      - name: Slučka každých 10 s (~290 s)
+      - name: 10 behov po sebe, každých 30 s
         env:
-          DURATION: "290"
+          RUNS: "10"
+          INTERVAL: "30"
           PUBLISH_DIR: ./live
         run: python scraper.py
