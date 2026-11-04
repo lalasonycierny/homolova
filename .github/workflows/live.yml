@@ -1,0 +1,42 @@
+name: live-homolova
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # minimum, ktorý GitHub dovoľuje
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: live
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pripraviť vetvu live
+        run: |
+          mkdir live && cd live
+          git init -q
+          git config user.name "bot" && git config user.email "bot@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: |
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: 10 behov po sebe, každých 30 s
+        env:
+          RUNS: "10"
+          INTERVAL: "30"
+          PUBLISH_DIR: ./live
+        run: python scraper.py
