@@ -34,24 +34,38 @@ def norm(s: str) -> str:
     return "".join(c for c in s if unicodedata.category(c) != "Mn").lower()
 
 
+JS_ROWS = """
+() => {
+  const W = window.innerWidth * 0.8;
+  const out = new Map();
+  for (const el of document.querySelectorAll('body *')) {
+    if (el.children.length || !el.textContent.trim()) continue;   // len listy s textom
+    let r = el;
+    while (r && r.tagName !== 'BODY' && r.getBoundingClientRect().width < W) r = r.parentElement;
+    if (!r || r.tagName === 'BODY') continue;
+    const txt = r.innerText.trim();
+    if (!txt || out.has(r)) continue;
+    out.set(r, {top: r.getBoundingClientRect().top, text: txt.split(/\\n+/).join(' | ')});
+  }
+  return [...out.values()];
+}
+"""
+
+
 def fetch_first_row(page) -> str:
     page.goto(URL, wait_until="domcontentloaded", timeout=30000)
-    # počkaj, kým sa tabuľka naplní (alebo objaví "Žiadne plánované odchody")
+    # počkaj, kým sa objavia odchody (minúty alebo bodka = práve prichádza)
     try:
         page.wait_for_function(
-            """() => [...document.querySelectorAll('table tr')]
-                   .some(r => r.innerText.trim().length > 3 && !/^Linka/.test(r.innerText.trim()))""",
-            timeout=15000,
+            "() => /\\d+\\s*min|●/.test(document.body.innerText)", timeout=20000
         )
     except Exception:
         pass
-    rows = page.eval_on_selector_all(
-        "table tr",
-        "els => els.map(e => [...e.querySelectorAll('td,th')].map(c => c.innerText.trim()).filter(Boolean).join(' | '))",
-    )
-    for row in rows:  # poradie zhora nadol
-        if KEYWORD in norm(row):
-            return row
+    page.wait_for_timeout(1000)
+    rows = sorted(page.evaluate(JS_ROWS), key=lambda r: r["top"])  # zhora nadol
+    for row in rows:
+        if KEYWORD in norm(row["text"]):
+            return row["text"]
     return ""
 
 
@@ -91,7 +105,7 @@ def main():
     count = 0
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        page = browser.new_page()
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
         while True:
             t0 = time.time()
             try:
